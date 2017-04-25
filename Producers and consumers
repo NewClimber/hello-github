@@ -2,7 +2,13 @@ package tij;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
+/**
+ * ExecutorService类的shutdownNow()方法和shutdown()方法区别：
+ * shutdownNow(): Attempts to stop all actively executing tasks, halts the processing of waiting tasks, 
+ *                and returns a list of the tasks that were awaiting execution. 
+ * shutdown(): Initiates an orderly shutdown in which previously submitted tasks are executed,
+ *             but no new tasks will be accepted. Invocation has no additional effect if already shut down. 
+ */
 public class Restaurant {
 	Meal meal;
 	WaitPerson waitPerson = new WaitPerson(this);
