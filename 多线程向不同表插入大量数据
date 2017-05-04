@@ -1,0 +1,147 @@
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import com.csvreader.CsvReader;
+
+public class InsertDataLUseMultiThread implements Runnable {
+	private static final String USERNAME = "****";//用户名
+	private static final String PASSWORD = "****";//密码
+	private static final String DRIVER = "com.mysql.jdbc.Driver";
+	private static final String URL = "jdbc:mysql://192.168.2.88:3306/cldev?characterEncoding=utf-8&useSSL=true&useServerPrepStmts=false&rewriteBatchedStatements=true";
+	private Connection conn;  
+	private PreparedStatement pstmt; 
+	private String filePath;
+	private String tableName;
+	private static int id;
+	private final int taskCount = id++;
+	public FileTOMySQLUseMultiThread() {
+		
+	}
+	public FileTOMySQLUseMultiThread(String filePath, String tableName) {
+		this.filePath = filePath;
+		this.tableName = tableName;
+	}
+	public static void main(String[] args) throws Exception {
+		String filePathBase = "D:/table_cut_piece/IBDAP.F_CRC_BUSIDETAIL_";
+		String tableNameBase = "F_CRC_BUSIDETAIL_";
+		FileTOMySQLUseMultiThread obj = new FileTOMySQLUseMultiThread();
+		//创建多个表
+		for(int i = 0; i < 506; i++)
+			obj.createTable("F_CRC_BUSIDETAIL", tableNameBase + i);
+		ExecutorService exec = Executors.newFixedThreadPool(5);//使用固定线程池，如果线程数过多，会出现异常，5个线程比较好
+		int num = 240;
+		int count = 235;
+		while(count < num) {
+			for(int i = 0; i < 5 && (count + i) < num; i++) 
+				exec.execute(new FileTOMySQLUseMultiThread(filePathBase + (i + count) + ".del", tableNameBase + (i + count)));
+			count += 5;
+			}
+			exec.shutdown(); 	
+	}
+	//获取链接
+	public Connection getConnection() {
+		try {
+			Class.forName(DRIVER);
+			System.out.println("Connect success!");
+			conn = DriverManager.getConnection(URL, USERNAME, PASSWORD);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return conn;
+	}
+	
+	//创建表
+	public void createTable(String oldName, String tableName) throws Exception {
+		BufferedReader reader = new BufferedReader(new FileReader("D:/table.txt"));
+		StringBuilder sb = new StringBuilder();
+		String line = null;
+		while((line = reader.readLine()) != null) {
+			sb.append(line + "\n");
+		}
+		sb.append("default charset=utf8\n");
+		String sql = sb.toString().replaceAll(oldName, tableName);
+		conn = getConnection();
+		pstmt = conn.prepareStatement(sql);
+		pstmt.execute();
+		reader.close();
+		pstmt.close();
+		conn.close();
+		System.out.println(tableName + " create success");
+	}
+	
+	public void run() {
+		CsvReader reader = null;
+		try {
+			File file = new File(filePath);
+			if (!file.exists()) {
+				System.out.println("file not found");
+				System.exit(0);
+			}
+			conn = getConnection();
+			conn.setAutoCommit(false);//设置手动提交
+			//构造插入语句
+			StringBuilder sql = new StringBuilder("insert into ");
+			sql.append(tableName);
+			sql.append(" values (");
+			for (int i = 0; i < 23; i++)
+				sql.append("?,");
+			sql.append("?)");
+			pstmt = conn.prepareStatement(sql.toString());
+			//读取数据
+			reader = new CsvReader(filePath, ',', Charset.forName("utf-8"));
+			int count = 0;
+			while (reader.readRecord()) {
+				String[] array = reader.getValues();
+				if(array[9].equals(""))
+					array[9] = "+0000000000000000000000.0000";
+				if(array[10].equals(""))
+					array[10] = "+0000000000000000000000.0000";
+				if(array[18].equals(""))
+					array[18] = "+0000000000000000000000.0000";
+				for (int i = 0; i < array.length; i++) {
+					pstmt.setString(i + 1, array[i]);
+				}
+				pstmt.addBatch();//批处理
+				count++;
+				if (count % 2000 == 0)
+					pstmt.executeBatch();//超过2000执行批处理语句
+				System.out.println("#" + tableName + ": column " + count);
+			}
+			pstmt.executeBatch();//执行剩余的批处理语句
+			conn.commit();//提交
+			System.out.println("#" + taskCount + " " + tableName + " insert success!");
+		} catch(SQLException e) {
+			try {
+				conn.rollback();//如果中途出现异常进行回滚，负责会导致事物不能提交
+			} catch (SQLException e1) {
+				e1.printStackTrace();
+			}
+		} catch(IOException e) {
+			try {
+				conn.rollback();//如果中途出现异常进行回滚，负责会导致事物不能提交
+			} catch (SQLException e1) {
+				e1.printStackTrace();
+			}
+		} finally {
+			try {
+				pstmt.close();
+				conn.close();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}  
+			reader.close();
+		}
+		
+	}
+
+}
+
