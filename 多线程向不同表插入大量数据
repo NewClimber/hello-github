@@ -12,7 +12,7 @@ import java.util.concurrent.Executors;
 
 import com.csvreader.CsvReader;
 
-public class InsertDataLUseMultiThread implements Runnable {
+public class InsertDataUseMultiThread implements Runnable {
 	private static final String USERNAME = "****";//用户名
 	private static final String PASSWORD = "****";//密码
 	private static final String DRIVER = "com.mysql.jdbc.Driver";
@@ -26,7 +26,7 @@ public class InsertDataLUseMultiThread implements Runnable {
 	public FileTOMySQLUseMultiThread() {
 		
 	}
-	public FileTOMySQLUseMultiThread(String filePath, String tableName) {
+	public InsertDataUseMultiThread(String filePath, String tableName) {
 		this.filePath = filePath;
 		this.tableName = tableName;
 	}
@@ -42,7 +42,7 @@ public class InsertDataLUseMultiThread implements Runnable {
 		int count = 235;
 		while(count < num) {
 			for(int i = 0; i < 5 && (count + i) < num; i++) 
-				exec.execute(new FileTOMySQLUseMultiThread(filePathBase + (i + count) + ".del", tableNameBase + (i + count)));
+				exec.execute(new InsertDataUseMultiThread(filePathBase + (i + count) + ".del", tableNameBase + (i + count)));
 			count += 5;
 			}
 			exec.shutdown(); 	
